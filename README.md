@@ -1,4 +1,4 @@
-# Buscar Banco de dados Rizzo
+# Buscar Banco de dados
 
 Aplicacao Flask para consulta de inventario, filtros por dashboard e registro de relatorios tecnicos.
 
