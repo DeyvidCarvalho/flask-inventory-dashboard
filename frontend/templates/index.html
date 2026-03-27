@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RIZZO GTIN</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo"><span>RIZZO</span> <span>GTIN</span></div>
+    <p>Painel de inventario inteligente</p>
+
+    <div class="menu">
+      <button data-section="dashboard" onclick="trocar('dashboard', this)">Dashboard</button>
+      <button data-section="notebooks" onclick="trocar('notebooks', this)">Buscar maquinas</button>
+      <button data-section="relatorios" onclick="trocar('relatorios', this)">Relatorios</button>
+      <button id="logoutBtn" class="btn secondary hidden" onclick="sair()">Sair</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section id="login" class="section active panel">
+      <div class="hero">
+        <div>
+          <h2>Acesso ao painel</h2>
+          <p>Digite seu nome para carregar dashboard, filtros e relatorios.</p>
+        </div>
+      </div>
+      <input id="usuario" placeholder="Digite seu nome">
+      <button class="btn" onclick="logar()">Entrar</button>
+      <div class="status" id="loginStatus"></div>
+    </section>
+
+    <section id="dashboard" class="section panel">
+      <div class="hero">
+        <div>
+          <h2>Dashboard por filtros</h2>
+          <p>Selecione uma categoria para ver exatamente quais maquinas fazem parte.</p>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span>Total de maquinas</span>
+          <strong id="totalMaquinas">0</strong>
+        </div>
+        <div class="stat">
+          <span>Filtro selecionado</span>
+          <strong id="filtroAtual">Nenhum</strong>
+        </div>
+        <div class="stat">
+          <span>Itens na categoria</span>
+          <strong id="totalCategoria">0</strong>
+        </div>
+      </div>
+
+      <div class="filter-grid">
+        <div class="filter-box">
+          <h3>RAM</h3>
+          <div id="ramChips" class="chips"></div>
+        </div>
+        <div class="filter-box">
+          <h3>CPU</h3>
+          <div id="cpuChips" class="chips"></div>
+        </div>
+      </div>
+
+      <div class="inline-actions dashboard-actions">
+        <button class="btn secondary" onclick="carregarTodosDashboard()">Mostrar todos os computadores</button>
+      </div>
+
+      <div id="detalheComputador" class="result-list"></div>
+      <div id="dashboardResultado" class="result-list"></div>
+    </section>
+
+    <section id="notebooks" class="section panel">
+      <div class="hero">
+        <div>
+          <h2>Busca completa no inventario</h2>
+          <p>Pesquise por usuario, computador, serial, IP ou qualquer termo salvo.</p>
+        </div>
+      </div>
+
+      <div class="inline-actions">
+        <input id="busca" placeholder="Ex: Maria, 10.0.0.45, Dell, serial...">
+        <button class="btn" onclick="buscar()">Buscar</button>
+      </div>
+
+      <div class="status" id="buscaStatus"></div>
+      <div id="resultadoBusca" class="result-list"></div>
+    </section>
+
+    <section id="relatorios" class="section panel">
+      <div class="hero">
+        <div>
+          <h2>Novo relatorio</h2>
+          <p>Registre observacoes tecnicas com data e usuario.</p>
+        </div>
+      </div>
+
+      <input id="titulo" placeholder="Titulo">
+      <textarea id="conteudo" placeholder="Descreva o relatorio"></textarea>
+      <div class="inline-actions">
+        <button class="btn" onclick="salvar()">Salvar relatorio</button>
+        <button class="btn secondary" onclick="exportarRelatoriosCsv()">Exportar CSV</button>
+      </div>
+      <div class="status" id="relatorioStatus"></div>
+
+      <h3>Relatorios salvos</h3>
+      <div id="lista" class="result-list"></div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

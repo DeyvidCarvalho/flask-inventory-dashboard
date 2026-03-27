@@ -1,0 +1,21 @@
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
