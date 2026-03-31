@@ -11,7 +11,7 @@ Write-Host ""
 $ipAddress = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {$_.AddressState -eq "Preferred"} -ErrorAction SilentlyContinue | Select-Object -First 1).IPAddress
 
 Write-Host "Usuário: Deyvid" -ForegroundColor Yellow
-Write-Host "Senha: deyvid66" -ForegroundColor Yellow
+Write-Host "Senha: senhaqualquer" -ForegroundColor Yellow
 Write-Host ""
 
 if ($ipAddress) {
