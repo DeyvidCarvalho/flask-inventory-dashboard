@@ -348,12 +348,15 @@ const modalComputadorState = {
   aberto: false,
   x: 0,
   y: 0,
+  alvoX: 0,
+  alvoY: 0,
   escala: 1,
   arrastando: false,
   inicioX: 0,
   inicioY: 0,
   origemX: 0,
-  origemY: 0
+  origemY: 0,
+  frameArrasto: null
 };
 
 const LIMITE_ESCALA_MIN = 0.85;
@@ -364,12 +367,26 @@ function aplicarTransformModal() {
   if (!card) {
     return;
   }
-  card.style.transform = `translate(calc(-50% + ${modalComputadorState.x}px), calc(-50% + ${modalComputadorState.y}px)) scale(${modalComputadorState.escala})`;
+  card.style.transform = `translate3d(calc(-50% + ${modalComputadorState.x}px), calc(-50% + ${modalComputadorState.y}px), 0) scale(${modalComputadorState.escala})`;
+}
+
+function agendarTransformModal() {
+  if (modalComputadorState.frameArrasto !== null) {
+    return;
+  }
+  modalComputadorState.frameArrasto = requestAnimationFrame(() => {
+    modalComputadorState.frameArrasto = null;
+    modalComputadorState.x = modalComputadorState.alvoX;
+    modalComputadorState.y = modalComputadorState.alvoY;
+    aplicarTransformModal();
+  });
 }
 
 function resetTransformModal() {
   modalComputadorState.x = 0;
   modalComputadorState.y = 0;
+  modalComputadorState.alvoX = 0;
+  modalComputadorState.alvoY = 0;
   modalComputadorState.escala = 1;
   aplicarTransformModal();
 }
@@ -424,6 +441,7 @@ function fecharModalComputador(event = null) {
 
   modalComputadorState.aberto = false;
   modalComputadorState.arrastando = false;
+  overlay.classList.remove("dragging");
   overlay.classList.remove("open");
   document.body.classList.remove("modal-open");
 }
@@ -432,7 +450,8 @@ function iniciarInteracoesModal() {
   const card = document.getElementById("computadorFloatingCard");
   const header = document.getElementById("computadorFloatingHeader");
   const closeBtn = document.getElementById("floatingCloseBtn");
-  if (!card || !header) {
+  const overlay = document.getElementById("computadorOverlay");
+  if (!card || !header || !overlay) {
     return;
   }
 
@@ -456,8 +475,12 @@ function iniciarInteracoesModal() {
     modalComputadorState.inicioY = event.clientY;
     modalComputadorState.origemX = modalComputadorState.x;
     modalComputadorState.origemY = modalComputadorState.y;
+    modalComputadorState.alvoX = modalComputadorState.x;
+    modalComputadorState.alvoY = modalComputadorState.y;
 
     header.classList.add("dragging");
+    card.classList.add("dragging");
+    overlay.classList.add("dragging");
     header.setPointerCapture(event.pointerId);
   });
 
@@ -468,9 +491,9 @@ function iniciarInteracoesModal() {
 
     const dx = event.clientX - modalComputadorState.inicioX;
     const dy = event.clientY - modalComputadorState.inicioY;
-    modalComputadorState.x = modalComputadorState.origemX + dx;
-    modalComputadorState.y = modalComputadorState.origemY + dy;
-    aplicarTransformModal();
+    modalComputadorState.alvoX = modalComputadorState.origemX + dx;
+    modalComputadorState.alvoY = modalComputadorState.origemY + dy;
+    agendarTransformModal();
   });
 
   const encerrarArrasto = (event) => {
@@ -479,6 +502,8 @@ function iniciarInteracoesModal() {
     }
     modalComputadorState.arrastando = false;
     header.classList.remove("dragging");
+    card.classList.remove("dragging");
+    overlay.classList.remove("dragging");
     if (event && event.pointerId !== undefined) {
       header.releasePointerCapture(event.pointerId);
     }
@@ -517,28 +542,37 @@ function setExpansaoPainel(painelId, botaoId, expandido) {
   const botao = document.getElementById(botaoId);
 
   if (painel) {
+    const concluirExpansao = () => {
+      if (painel.classList.contains("is-open")) {
+        painel.style.maxHeight = "none";
+      }
+    };
+
     if (expandido) {
       painel.classList.add("is-open");
+      const alturaAlvo = painel.scrollHeight;
       painel.style.maxHeight = "0px";
+      void painel.offsetHeight;
       requestAnimationFrame(() => {
-        painel.style.maxHeight = `${painel.scrollHeight}px`;
+        painel.style.maxHeight = `${alturaAlvo}px`;
       });
 
       const aoExpandir = (event) => {
         if (event.propertyName !== "max-height") {
           return;
         }
-        if (painel.classList.contains("is-open")) {
-          painel.style.maxHeight = "none";
-        }
+        concluirExpansao();
         painel.removeEventListener("transitionend", aoExpandir);
       };
 
       painel.addEventListener("transitionend", aoExpandir);
+      setTimeout(concluirExpansao, 380);
     } else {
       if (painel.style.maxHeight === "none" || !painel.style.maxHeight) {
         painel.style.maxHeight = `${painel.scrollHeight}px`;
       }
+      // Mantem o colapso suave mesmo apos mudancas dinamicas no conteudo.
+      void painel.offsetHeight;
       requestAnimationFrame(() => {
         painel.style.maxHeight = "0px";
       });
@@ -864,6 +898,16 @@ function montarOpcoesFiltro(containerId, tipo, lista) {
   });
 
   div.appendChild(fragment);
+
+  const painel = div.closest(".hidden-panel");
+  if (painel && painel.classList.contains("is-open")) {
+    painel.style.maxHeight = `${painel.scrollHeight}px`;
+    requestAnimationFrame(() => {
+      if (painel.classList.contains("is-open")) {
+        painel.style.maxHeight = "none";
+      }
+    });
+  }
 }
 
 function payloadFiltrosDashboard() {
