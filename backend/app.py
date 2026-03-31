@@ -72,6 +72,40 @@ def inicializar_banco():
     """
     )
 
+    c.execute("PRAGMA table_info(relatorios)")
+    colunas_relatorios = {row[1] for row in c.fetchall()}
+
+    # Migrate legacy report table schemas to match the current API contract.
+    if "id" not in colunas_relatorios:
+        c.execute("ALTER TABLE relatorios RENAME TO relatorios_legado")
+        c.execute(
+            """
+            CREATE TABLE relatorios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario TEXT,
+                titulo TEXT,
+                conteudo TEXT,
+                data TEXT
+            )
+            """
+        )
+
+        colunas_copiaveis = [
+            nome
+            for nome in ["usuario", "titulo", "conteudo", "data"]
+            if nome in colunas_relatorios
+        ]
+        if colunas_copiaveis:
+            colunas_sql = ", ".join(colunas_copiaveis)
+            c.execute(
+                f"INSERT INTO relatorios ({colunas_sql}) SELECT {colunas_sql} FROM relatorios_legado"
+            )
+        c.execute("DROP TABLE relatorios_legado")
+    else:
+        for coluna in ["usuario", "titulo", "conteudo", "data"]:
+            if coluna not in colunas_relatorios:
+                c.execute(f"ALTER TABLE relatorios ADD COLUMN {coluna} TEXT")
+
     c.execute("SELECT name FROM sqlite_master WHERE type='table'")
     tabelas = {row[0] for row in c.fetchall()}
 
@@ -147,6 +181,49 @@ def expressao_cpu_categoria():
         END
     """
 
+
+def coluna_windows_disponivel(colunas):
+    for nome in ["windows", "sistema_operacional", "sistema", "so", "os"]:
+        if nome in colunas:
+            return nome
+    return None
+
+
+def expressao_windows_categoria(colunas):
+    coluna_windows = coluna_windows_disponivel(colunas)
+    if not coluna_windows:
+        return "'Nao informado'"
+    return f"COALESCE(NULLIF(TRIM({coluna_windows}), ''), 'Nao informado')"
+
+
+def lista_strings_unicas(valor):
+    if not isinstance(valor, list):
+        return []
+    limpo = []
+    vistos = set()
+    for item in valor:
+        texto = (str(item) if item is not None else "").strip()
+        if not texto or texto in vistos:
+            continue
+        vistos.add(texto)
+        limpo.append(texto)
+    return limpo
+
+
+def placeholders_sql(qtd):
+    return ",".join(["?"] * qtd)
+
+
+def filtro_descricao(filtros):
+    partes = []
+    if filtros.get("ram"):
+        partes.append("RAM: " + ", ".join(filtros["ram"]))
+    if filtros.get("cpu"):
+        partes.append("CPU: " + ", ".join(filtros["cpu"]))
+    if filtros.get("windows"):
+        partes.append("Windows: " + ", ".join(filtros["windows"]))
+    return " | ".join(partes) if partes else "Nenhum"
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -189,6 +266,8 @@ def sessao_atual():
 def dashboard():
     conn = conectar()
     c = conn.cursor()
+    colunas = obter_colunas_inventario(c)
+    windows_expr = expressao_windows_categoria(colunas)
 
     c.execute("""
         SELECT
@@ -210,6 +289,16 @@ def dashboard():
     """)
     cpu = [{"categoria": r[0], "total": r[1]} for r in c.fetchall()]
 
+    c.execute(f"""
+        SELECT
+            {windows_expr} AS categoria,
+            COUNT(*) AS total
+        FROM inventario
+        GROUP BY categoria
+        ORDER BY total DESC, categoria ASC
+    """)
+    windows = [{"categoria": r[0], "total": r[1]} for r in c.fetchall()]
+
     c.execute("SELECT COUNT(*) FROM inventario")
     total_maquinas = c.fetchone()[0]
 
@@ -219,7 +308,66 @@ def dashboard():
         {
             "ram": ram,
             "cpu": cpu,
+            "windows": windows,
             "totais": {"maquinas": total_maquinas},
+        }
+    )
+
+
+@app.route("/dashboard/filtrar_multiplos", methods=["POST"])
+@login_obrigatorio
+def dashboard_filtrar_multiplos():
+    dados = request.json or {}
+    filtros = {
+        "ram": lista_strings_unicas(dados.get("ram")),
+        "cpu": lista_strings_unicas(dados.get("cpu")),
+        "windows": lista_strings_unicas(dados.get("windows")),
+    }
+    mostrar_todos = bool(dados.get("mostrar_todos"))
+
+    conn = conectar()
+    c = conn.cursor()
+    colunas = obter_colunas_inventario(c)
+    windows_expr = expressao_windows_categoria(colunas)
+
+    where = []
+    params = []
+
+    if not mostrar_todos:
+        if filtros["ram"]:
+            where.append(
+                f"COALESCE(NULLIF(TRIM(ram), ''), 'Nao informado') IN ({placeholders_sql(len(filtros['ram']))})"
+            )
+            params.extend(filtros["ram"])
+
+        if filtros["cpu"]:
+            where.append(
+                f"{expressao_cpu_categoria()} IN ({placeholders_sql(len(filtros['cpu']))})"
+            )
+            params.extend(filtros["cpu"])
+
+        if filtros["windows"]:
+            where.append(
+                f"{windows_expr} IN ({placeholders_sql(len(filtros['windows']))})"
+            )
+            params.extend(filtros["windows"])
+
+    sql = "SELECT * FROM inventario"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY computador ASC"
+
+    c.execute(sql, tuple(params))
+    maquinas = [linha_para_dict(colunas, linha) for linha in c.fetchall()]
+    conn.close()
+
+    return resposta_ok(
+        {
+            "filtro": "Todos os computadores" if mostrar_todos else filtro_descricao(filtros),
+            "filtros": filtros,
+            "mostrar_todos": mostrar_todos,
+            "total": len(maquinas),
+            "maquinas": maquinas,
         }
     )
 

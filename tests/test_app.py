@@ -105,6 +105,43 @@ def test_dashboard_and_filter(client):
     assert payload["data"]["total"] == 1
 
 
+def test_dashboard_filtro_multiplos_and(client):
+    login(client)
+
+    response = client.post(
+        "/dashboard/filtrar_multiplos",
+        json={"ram": ["8GB"], "cpu": ["i5"], "windows": [], "mostrar_todos": False},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["data"]["total"] == 1
+    assert payload["data"]["maquinas"][0]["computador"] == "PC-001"
+
+    response = client.post(
+        "/dashboard/filtrar_multiplos",
+        json={"ram": ["8GB"], "cpu": ["Ryzen 5"], "windows": [], "mostrar_todos": False},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["data"]["total"] == 0
+
+
+def test_dashboard_filtro_multiplos_mostrar_todos(client):
+    login(client)
+
+    response = client.post(
+        "/dashboard/filtrar_multiplos",
+        json={"ram": ["8GB"], "cpu": ["i5"], "windows": ["Windows 11"], "mostrar_todos": True},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["data"]["mostrar_todos"] is True
+    assert payload["data"]["total"] == 2
+
+
 def test_dashboard_listar_todos(client):
     login(client)
 
@@ -199,4 +236,47 @@ def test_deletar_relatorio(client):
     assert list_response.status_code == 200
     payload = list_response.get_json()
     assert len(payload["data"]["relatorios"]) == 0
+
+
+def test_relatorios_migracao_esquema_legado(client):
+    conn = sqlite3.connect(app.config["DATABASE_PATH"])
+    c = conn.cursor()
+
+    c.execute("DROP TABLE IF EXISTS relatorios")
+    c.execute(
+        """
+        CREATE TABLE relatorios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT,
+            conteudo TEXT,
+            data TEXT
+        )
+        """
+    )
+    c.execute(
+        """
+        INSERT INTO relatorios (titulo, conteudo, data)
+        VALUES ('Legado', 'Registro antigo', '01/01/2026 10:00')
+        """
+    )
+
+    conn.commit()
+    conn.close()
+
+    app.config["DB_INITIALIZED"] = False
+
+    login(client)
+
+    list_response = client.get("/listar_relatorios")
+    assert list_response.status_code == 200
+    payload = list_response.get_json()
+    assert payload["ok"] is True
+    assert payload["data"]["relatorios"][0]["titulo"] == "Legado"
+    assert payload["data"]["relatorios"][0]["usuario"] is None
+
+    save_response = client.post(
+        "/salvar_relatorio",
+        json={"titulo": "Novo", "conteudo": "Apos migracao"},
+    )
+    assert save_response.status_code == 201
 

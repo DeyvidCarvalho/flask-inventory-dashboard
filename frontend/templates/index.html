@@ -57,20 +57,72 @@
         </div>
       </div>
 
-      <div class="filter-grid">
-        <div class="filter-box">
-          <h3>RAM</h3>
-          <div id="ramChips" class="chips"></div>
+      <button
+        class="filter-toggle"
+        id="filtroPainelBtn"
+        type="button"
+        aria-expanded="false"
+        onclick="alternarPainelFiltros()"
+      >
+        Filtros
+      </button>
+
+      <div id="filtrosPainel" class="filters-panel hidden-panel">
+        <div class="filter-accordion-item">
+          <button
+            class="filter-subtoggle"
+            id="filtroRamBtn"
+            type="button"
+            aria-expanded="false"
+            onclick="alternarGrupoFiltro('ram')"
+          >
+            RAM
+          </button>
+          <div id="filtroGrupo-ram" class="filter-group-content hidden-panel">
+            <div id="ramOpcoes" class="filter-options"></div>
+          </div>
         </div>
-        <div class="filter-box">
-          <h3>CPU</h3>
-          <div id="cpuChips" class="chips"></div>
+
+        <div class="filter-accordion-item">
+          <button
+            class="filter-subtoggle"
+            id="filtroCpuBtn"
+            type="button"
+            aria-expanded="false"
+            onclick="alternarGrupoFiltro('cpu')"
+          >
+            CPU
+          </button>
+          <div id="filtroGrupo-cpu" class="filter-group-content hidden-panel">
+            <div id="cpuOpcoes" class="filter-options"></div>
+          </div>
+        </div>
+
+        <div class="filter-accordion-item">
+          <button
+            class="filter-subtoggle"
+            id="filtroWindowsBtn"
+            type="button"
+            aria-expanded="false"
+            onclick="alternarGrupoFiltro('windows')"
+          >
+            Windows
+          </button>
+          <div id="filtroGrupo-windows" class="filter-group-content hidden-panel">
+            <div id="windowsOpcoes" class="filter-options"></div>
+          </div>
         </div>
       </div>
 
       <div class="inline-actions dashboard-actions">
-        <button class="btn secondary" onclick="carregarTodosDashboard()">Mostrar todos os computadores</button>
+        <label class="switch-inline" for="mostrarTodos">
+          <input id="mostrarTodos" type="checkbox" class="switch-input">
+          <span class="switch-slider" aria-hidden="true"></span>
+          <span class="switch-text">Mostrar todos os computadores</span>
+        </label>
+        <button class="btn secondary" onclick="limparFiltrosDashboard()">Limpar filtros</button>
       </div>
+      <div class="status" id="filtroStatus"></div>
 
       <div id="detalheComputador" class="result-list"></div>
       <div id="dashboardResultado" class="result-list"></div>
