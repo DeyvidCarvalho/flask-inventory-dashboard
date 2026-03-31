@@ -236,21 +236,18 @@ body {
 }
 
 .hidden-panel {
-  max-height: 0;
+  height: 0;
   opacity: 0;
-  transform: translateY(-5px) scale(0.995);
+  transform: translateY(-4px);
   overflow: hidden;
   pointer-events: none;
-  will-change: max-height, opacity, transform;
-  transition:
-    max-height 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.28s ease,
-    transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: height, opacity, transform;
+  transition: opacity 0.2s ease, transform 0.22s ease;
 }
 
 .hidden-panel.is-open {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
   pointer-events: auto;
 }
 
@@ -458,6 +455,73 @@ body {
 .card-detalhe {
   border-color: rgba(255, 0, 0, 0.45);
   box-shadow: 0 8px 22px rgba(255, 0, 0, 0.14);
+}
+
+.computer-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(2, 6, 23, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.2s ease;
+  z-index: 120;
+}
+
+.computer-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.computer-floating-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(860px, calc(100vw - 36px));
+  max-height: calc(100vh - 72px);
+  overflow: auto;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(150deg, rgba(15, 23, 42, 0.93) 0%, rgba(30, 41, 59, 0.93) 100%);
+  box-shadow: 0 30px 70px rgba(2, 6, 23, 0.55);
+  transform: translate(-50%, -50%) scale(1);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  cursor: default;
+}
+
+.computer-floating-card:hover {
+  box-shadow: 0 34px 80px rgba(2, 6, 23, 0.62);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.floating-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  cursor: grab;
+}
+
+.floating-card-header.dragging {
+  cursor: grabbing;
+}
+
+.floating-card-header h3 {
+  margin: 0;
+}
+
+.floating-close {
+  margin-top: 0;
+  padding: 8px 12px;
+}
+
+body.modal-open {
+  overflow: hidden;
 }
 
 .card h4 {

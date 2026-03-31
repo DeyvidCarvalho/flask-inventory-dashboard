@@ -164,6 +164,18 @@
       <h3>Relatorios salvos</h3>
       <div id="lista" class="result-list"></div>
     </section>
+
+    <div id="computadorOverlay" class="computer-overlay" onclick="fecharModalComputador(event)">
+      <div id="computadorFloatingCard" class="computer-floating-card" role="dialog" aria-modal="true" aria-label="Detalhes do computador">
+        <div id="computadorFloatingHeader" class="floating-card-header">
+          <h3 id="floatingTitulo">Detalhes do computador</h3>
+          <button class="btn secondary floating-close" type="button" onclick="fecharModalComputador()">Fechar</button>
+        </div>
+        <div id="floatingMeta" class="meta"></div>
+        <div id="floatingCampos"></div>
+        <div id="floatingHistorico" class="timeline"></div>
+      </div>
+    </div>
   </main>
 </div>
 

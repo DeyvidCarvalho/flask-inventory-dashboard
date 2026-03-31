@@ -6,36 +6,206 @@ const filtrosDashboard = {
   mostrarTodos: false
 };
 
+const modalComputadorState = {
+  aberto: false,
+  x: 0,
+  y: 0,
+  escala: 1,
+  arrastando: false,
+  inicioX: 0,
+  inicioY: 0,
+  origemX: 0,
+  origemY: 0
+};
+
+const LIMITE_ESCALA_MIN = 0.85;
+const LIMITE_ESCALA_MAX = 1.35;
+
+function aplicarTransformModal() {
+  const card = document.getElementById("computadorFloatingCard");
+  if (!card) {
+    return;
+  }
+  card.style.transform = `translate(calc(-50% + ${modalComputadorState.x}px), calc(-50% + ${modalComputadorState.y}px)) scale(${modalComputadorState.escala})`;
+}
+
+function resetTransformModal() {
+  modalComputadorState.x = 0;
+  modalComputadorState.y = 0;
+  modalComputadorState.escala = 1;
+  aplicarTransformModal();
+}
+
+function abrirModalComputador(registro, historico) {
+  const overlay = document.getElementById("computadorOverlay");
+  const titulo = document.getElementById("floatingTitulo");
+  const meta = document.getElementById("floatingMeta");
+  const campos = document.getElementById("floatingCampos");
+  const timeline = document.getElementById("floatingHistorico");
+
+  if (!overlay || !titulo || !meta || !campos || !timeline) {
+    return;
+  }
+
+  titulo.textContent = `Detalhes: ${registro.computador || "Computador"}`;
+  meta.textContent = `Usuario: ${registro.usuario || "-"} | IP: ${registro.ip || "-"} | Serial: ${registro.serial || "-"}`;
+
+  campos.innerHTML = "";
+  campos.appendChild(renderCampos(registro));
+
+  timeline.innerHTML = "<strong>Historico de mudancas</strong>";
+  if (!historico.length) {
+    const vazio = document.createElement("div");
+    vazio.className = "timeline-item";
+    vazio.textContent = "Sem historico registrado para este computador.";
+    timeline.appendChild(vazio);
+  } else {
+    historico.forEach((h) => {
+      const itemLinha = document.createElement("div");
+      itemLinha.className = "timeline-item";
+      itemLinha.textContent = `${h.data} - ${h.mudanca}`;
+      timeline.appendChild(itemLinha);
+    });
+  }
+
+  modalComputadorState.aberto = true;
+  resetTransformModal();
+  overlay.classList.add("open");
+  document.body.classList.add("modal-open");
+}
+
+function fecharModalComputador(event = null) {
+  const overlay = document.getElementById("computadorOverlay");
+  if (!overlay) {
+    return;
+  }
+
+  if (event && event.target !== overlay) {
+    return;
+  }
+
+  modalComputadorState.aberto = false;
+  modalComputadorState.arrastando = false;
+  overlay.classList.remove("open");
+  document.body.classList.remove("modal-open");
+}
+
+function iniciarInteracoesModal() {
+  const card = document.getElementById("computadorFloatingCard");
+  const header = document.getElementById("computadorFloatingHeader");
+  if (!card || !header) {
+    return;
+  }
+
+  header.addEventListener("pointerdown", (event) => {
+    if (!modalComputadorState.aberto || event.button !== 0) {
+      return;
+    }
+
+    modalComputadorState.arrastando = true;
+    modalComputadorState.inicioX = event.clientX;
+    modalComputadorState.inicioY = event.clientY;
+    modalComputadorState.origemX = modalComputadorState.x;
+    modalComputadorState.origemY = modalComputadorState.y;
+
+    header.classList.add("dragging");
+    header.setPointerCapture(event.pointerId);
+  });
+
+  header.addEventListener("pointermove", (event) => {
+    if (!modalComputadorState.arrastando) {
+      return;
+    }
+
+    const dx = event.clientX - modalComputadorState.inicioX;
+    const dy = event.clientY - modalComputadorState.inicioY;
+    modalComputadorState.x = modalComputadorState.origemX + dx;
+    modalComputadorState.y = modalComputadorState.origemY + dy;
+    aplicarTransformModal();
+  });
+
+  const encerrarArrasto = (event) => {
+    if (!modalComputadorState.arrastando) {
+      return;
+    }
+    modalComputadorState.arrastando = false;
+    header.classList.remove("dragging");
+    if (event && event.pointerId !== undefined) {
+      header.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  header.addEventListener("pointerup", encerrarArrasto);
+  header.addEventListener("pointercancel", encerrarArrasto);
+
+  card.addEventListener(
+    "wheel",
+    (event) => {
+      if (!modalComputadorState.aberto) {
+        return;
+      }
+      event.preventDefault();
+
+      const ajuste = event.deltaY * -0.0012;
+      modalComputadorState.escala = Math.min(
+        LIMITE_ESCALA_MAX,
+        Math.max(LIMITE_ESCALA_MIN, modalComputadorState.escala + ajuste)
+      );
+      aplicarTransformModal();
+    },
+    { passive: false }
+  );
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modalComputadorState.aberto) {
+      fecharModalComputador();
+    }
+  });
+}
+
 function setExpansaoPainel(painelId, botaoId, expandido) {
   const painel = document.getElementById(painelId);
   const botao = document.getElementById(botaoId);
 
   if (painel) {
+    const duracao = 230;
+    const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+    if (painel._animacaoExpansao) {
+      painel._animacaoExpansao.cancel();
+    }
+
     if (expandido) {
       painel.classList.add("is-open");
-      painel.style.maxHeight = "0px";
-      requestAnimationFrame(() => {
-        painel.style.maxHeight = `${painel.scrollHeight}px`;
-      });
+      const alturaFinal = painel.scrollHeight;
+      painel.style.height = "0px";
+      painel.style.overflow = "hidden";
 
-      const aoExpandir = (event) => {
-        if (event.propertyName !== "max-height") {
-          return;
-        }
+      painel._animacaoExpansao = painel.animate(
+        [{ height: "0px" }, { height: `${alturaFinal}px` }],
+        { duration: duracao, easing, fill: "forwards" }
+      );
+
+      painel._animacaoExpansao.onfinish = () => {
         if (painel.classList.contains("is-open")) {
-          painel.style.maxHeight = "none";
+          painel.style.height = "auto";
+          painel.style.overflow = "visible";
         }
-        painel.removeEventListener("transitionend", aoExpandir);
       };
-
-      painel.addEventListener("transitionend", aoExpandir);
     } else {
-      if (painel.style.maxHeight === "none" || !painel.style.maxHeight) {
-        painel.style.maxHeight = `${painel.scrollHeight}px`;
-      }
-      void painel.offsetHeight;
-      painel.style.maxHeight = "0px";
-      painel.classList.remove("is-open");
+      const alturaAtual = painel.scrollHeight;
+      painel.style.height = `${alturaAtual}px`;
+      painel.style.overflow = "hidden";
+
+      painel._animacaoExpansao = painel.animate(
+        [{ height: `${alturaAtual}px` }, { height: "0px" }],
+        { duration: duracao, easing, fill: "forwards" }
+      );
+
+      painel._animacaoExpansao.onfinish = () => {
+        painel.classList.remove("is-open");
+        painel.style.height = "0px";
+      };
     }
   }
   if (botao) {
@@ -458,46 +628,14 @@ async function carregarDetalheComputador(nomeComputador) {
     return;
   }
 
-  const detalhe = document.getElementById("detalheComputador");
-  detalhe.innerHTML = '<div class="card"><h4>Carregando detalhes...</h4></div>';
-
   try {
     const data = await api(`/computadores/${encodeURIComponent(nomeComputador)}`);
     const registro = data.registro || {};
     const historico = data.historico || [];
 
-    const card = document.createElement("div");
-    card.className = "card card-detalhe";
-    card.innerHTML = `
-      <h4>Detalhes: ${escapeHtml(registro.computador || nomeComputador)}</h4>
-      <div class="meta">Usuario: ${escapeHtml(registro.usuario)} | IP: ${escapeHtml(registro.ip)} | Serial: ${escapeHtml(registro.serial)}</div>
-    `;
-
-    card.appendChild(renderCampos(registro));
-
-    const timeline = document.createElement("div");
-    timeline.className = "timeline";
-    timeline.innerHTML = "<strong>Historico de mudancas</strong>";
-
-    if (!historico.length) {
-      const vazio = document.createElement("div");
-      vazio.className = "timeline-item";
-      vazio.textContent = "Sem historico registrado para este computador.";
-      timeline.appendChild(vazio);
-    } else {
-      historico.forEach((h) => {
-        const itemLinha = document.createElement("div");
-        itemLinha.className = "timeline-item";
-        itemLinha.textContent = `${h.data} - ${h.mudanca}`;
-        timeline.appendChild(itemLinha);
-      });
-    }
-
-    card.appendChild(timeline);
-    detalhe.innerHTML = "";
-    detalhe.appendChild(card);
+    abrirModalComputador(registro, historico);
   } catch (err) {
-    detalhe.innerHTML = `<div class="card"><h4>Erro ao carregar detalhes</h4><p class="meta">${escapeHtml(err.message)}</p></div>`;
+    setStatus("filtroStatus", `Erro ao carregar detalhes: ${err.message}`, true);
   }
 }
 
@@ -702,5 +840,7 @@ window.deletarRelatorio = deletarRelatorio;
 window.limparFiltrosDashboard = limparFiltrosDashboard;
 window.alternarPainelFiltros = alternarPainelFiltros;
 window.alternarGrupoFiltro = alternarGrupoFiltro;
+window.fecharModalComputador = fecharModalComputador;
 
+iniciarInteracoesModal();
 validarSessaoInicial();
