@@ -93,11 +93,22 @@ function fecharModalComputador(event = null) {
 function iniciarInteracoesModal() {
   const card = document.getElementById("computadorFloatingCard");
   const header = document.getElementById("computadorFloatingHeader");
+  const closeBtn = document.getElementById("floatingCloseBtn");
   if (!card || !header) {
     return;
   }
 
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      fecharModalComputador();
+    });
+  }
+
   header.addEventListener("pointerdown", (event) => {
+    if (event.target && event.target.closest(".floating-close")) {
+      return;
+    }
     if (!modalComputadorState.aberto || event.button !== 0) {
       return;
     }
@@ -168,44 +179,32 @@ function setExpansaoPainel(painelId, botaoId, expandido) {
   const botao = document.getElementById(botaoId);
 
   if (painel) {
-    const duracao = 230;
-    const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
-
-    if (painel._animacaoExpansao) {
-      painel._animacaoExpansao.cancel();
-    }
-
     if (expandido) {
       painel.classList.add("is-open");
-      const alturaFinal = painel.scrollHeight;
-      painel.style.height = "0px";
-      painel.style.overflow = "hidden";
+      painel.style.maxHeight = "0px";
+      requestAnimationFrame(() => {
+        painel.style.maxHeight = `${painel.scrollHeight}px`;
+      });
 
-      painel._animacaoExpansao = painel.animate(
-        [{ height: "0px" }, { height: `${alturaFinal}px` }],
-        { duration: duracao, easing, fill: "forwards" }
-      );
-
-      painel._animacaoExpansao.onfinish = () => {
-        if (painel.classList.contains("is-open")) {
-          painel.style.height = "auto";
-          painel.style.overflow = "visible";
+      const aoExpandir = (event) => {
+        if (event.propertyName !== "max-height") {
+          return;
         }
+        if (painel.classList.contains("is-open")) {
+          painel.style.maxHeight = "none";
+        }
+        painel.removeEventListener("transitionend", aoExpandir);
       };
+
+      painel.addEventListener("transitionend", aoExpandir);
     } else {
-      const alturaAtual = painel.scrollHeight;
-      painel.style.height = `${alturaAtual}px`;
-      painel.style.overflow = "hidden";
-
-      painel._animacaoExpansao = painel.animate(
-        [{ height: `${alturaAtual}px` }, { height: "0px" }],
-        { duration: duracao, easing, fill: "forwards" }
-      );
-
-      painel._animacaoExpansao.onfinish = () => {
-        painel.classList.remove("is-open");
-        painel.style.height = "0px";
-      };
+      if (painel.style.maxHeight === "none" || !painel.style.maxHeight) {
+        painel.style.maxHeight = `${painel.scrollHeight}px`;
+      }
+      requestAnimationFrame(() => {
+        painel.style.maxHeight = "0px";
+      });
+      painel.classList.remove("is-open");
     }
   }
   if (botao) {
