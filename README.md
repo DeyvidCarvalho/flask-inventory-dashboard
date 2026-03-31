@@ -34,6 +34,8 @@ Use `.env.example` como base:
 
 - `SECRET_KEY`: chave de sessao da aplicacao.
 - `DATABASE_PATH`: caminho do banco SQLite.
+- `FLASK_HOST`: host de bind do servidor (padrao: `127.0.0.1`).
+- `FLASK_PORT`: porta do servidor (padrao: `5000`).
 - `FLASK_DEBUG`: `1` para debug local, `0` para execucao normal.
 
 ## Publicar no GitHub (seguro)
@@ -106,6 +108,15 @@ python backend/app.py
 ```
 
 A aplicacao sobe em `http://127.0.0.1:5000`.
+
+Para permitir acesso de outros dispositivos na mesma rede WiFi:
+
+```powershell
+$env:FLASK_HOST="0.0.0.0"
+python backend/app.py
+```
+
+Nesse caso, o acesso externo fica em `http://SEU_IP_LOCAL:5000`.
 
 ## Testes
 
