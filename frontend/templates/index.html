@@ -17,6 +17,8 @@
       <button data-section="dashboard" onclick="trocar('dashboard', this)">Dashboard</button>
       <button data-section="notebooks" onclick="trocar('notebooks', this)">Buscar maquinas</button>
       <button data-section="relatorios" onclick="trocar('relatorios', this)">Relatorios</button>
+      <button id="aprovacoesBtn" data-section="aprovacoes" class="hidden" onclick="trocar('aprovacoes', this)">Aprovacoes (0)</button>
+      <button id="usuariosBtn" data-section="usuarios" class="hidden" onclick="trocar('usuarios', this)">Usuarios</button>
       <button id="logoutBtn" class="btn secondary hidden" onclick="sair()">Sair</button>
     </div>
   </aside>
@@ -26,12 +28,53 @@
       <div class="hero">
         <div>
           <h2>Acesso ao painel</h2>
-          <p>Digite seu nome para carregar dashboard, filtros e relatorios.</p>
+          <p>Entre com usuario e senha ou registre uma nova conta.</p>
         </div>
       </div>
-      <input id="usuario" placeholder="Digite seu nome">
-      <button class="btn" onclick="logar()">Entrar</button>
+      <div class="login-usuario-wrapper" id="loginUsuarioWrapper">
+        <input id="usuario" placeholder="Digite seu nome" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <div id="usuariosSugestoes" class="login-suggestions hidden"></div>
+      </div>
+      <div class="login-senha-wrapper" id="loginSenhaWrapper">
+        <input id="senha" type="password" placeholder="Digite sua senha" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true">
+        <div id="senhaSugestoes" class="login-suggestions hidden"></div>
+      </div>
+      <div class="inline-actions auth-actions">
+        <button class="btn" onclick="logar()">Entrar</button>
+        <button class="btn secondary" onclick="registrar()">Registrar</button>
+      </div>
       <div class="status" id="loginStatus"></div>
+    </section>
+
+    <section id="aprovacoes" class="section panel">
+      <div class="hero">
+        <div>
+          <h2>Aprovacao de acessos</h2>
+          <p>Revise os cadastros e ative o acesso dos usuarios com a chave.</p>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span>Pendentes</span>
+          <strong id="totalPendentes">0</strong>
+        </div>
+      </div>
+
+      <div class="status" id="aprovacaoStatus"></div>
+      <div id="listaAprovacoes" class="result-list"></div>
+    </section>
+
+    <section id="usuarios" class="section panel">
+      <div class="hero">
+        <div>
+          <h2>Gerenciar usuarios</h2>
+          <p>Edite dados, senhas e permissoes dos usuarios cadastrados.</p>
+        </div>
+      </div>
+
+      <div class="status" id="usuariosStatus"></div>
+      <div id="listaUsuarios" class="result-list"></div>
     </section>
 
     <section id="dashboard" class="section panel">

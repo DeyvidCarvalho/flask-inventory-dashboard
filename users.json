@@ -1,0 +1,18 @@
+{
+  "Deyvid": {
+    "senha_hash": "pbkdf2:sha256:60000$9akelLyY8IMPcDko$0393ebcff9057c3deaeb947b61ae260eb6216fcbd3f915a3537777e896d51a0f",
+    "aprovado": true,
+    "is_admin": true,
+    "data_cadastro": "31/03/2026 10:44",
+    "aprovado_em": "31/03/2026 10:44",
+    "aprovado_por": "sistema"
+  },
+  "cristiano.silva": {
+    "senha_hash": "pbkdf2:sha256:60000$X8OoZfenYQszowc5$76b7b58164bd38826c5cf35ac6afa77ff3a7bde58ceaa13acad9a6024a3023ad",
+    "aprovado": true,
+    "is_admin": true,
+    "data_cadastro": "31/03/2026 10:51",
+    "aprovado_em": "31/03/2026 10:51",
+    "aprovado_por": "Deyvid"
+  }
+}

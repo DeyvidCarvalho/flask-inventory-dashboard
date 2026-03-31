@@ -1,10 +1,348 @@
 let usuarioLogado = "";
+let adminLogado = false;
+let pollingSessaoId = null;
+const CHAVE_USUARIOS_SALVOS = "login_usuarios_salvos_v1";
+const CHAVE_SENHAS_SALVAS = "login_senhas_salvas_v1";
+const CHAVE_PREF_SALVAR_SENHA = "login_pref_salvar_senha_v1";
+const MAX_USUARIOS_SALVOS = 8;
 const filtrosDashboard = {
   ram: new Set(),
   cpu: new Set(),
   windows: new Set(),
   mostrarTodos: false
 };
+
+function obterUsuariosSalvos() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_USUARIOS_SALVOS);
+    const lista = JSON.parse(bruto || "[]");
+    if (!Array.isArray(lista)) {
+      return [];
+    }
+
+    const vistos = new Set();
+    const normalizada = [];
+    lista.forEach((nome) => {
+      const limpo = String(nome || "").trim();
+      const chave = limpo.toLowerCase();
+      if (!limpo || vistos.has(chave)) {
+        return;
+      }
+      vistos.add(chave);
+      normalizada.push(limpo);
+    });
+    return normalizada;
+  } catch (_err) {
+    return [];
+  }
+}
+
+function persistirUsuariosSalvos(lista) {
+  try {
+    localStorage.setItem(CHAVE_USUARIOS_SALVOS, JSON.stringify(lista.slice(0, MAX_USUARIOS_SALVOS)));
+  } catch (_err) {
+    // Ignore localStorage failures.
+  }
+}
+
+function obterSenhasSalvas() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_SENHAS_SALVAS);
+    const dados = JSON.parse(bruto || "{}");
+    if (!dados || typeof dados !== "object" || Array.isArray(dados)) {
+      return {};
+    }
+    return dados;
+  } catch (_err) {
+    return {};
+  }
+}
+
+function persistirSenhasSalvas(senhas) {
+  try {
+    localStorage.setItem(CHAVE_SENHAS_SALVAS, JSON.stringify(senhas));
+  } catch (_err) {
+    // Ignore localStorage failures.
+  }
+}
+
+function registrarSenhaSalva(nomeUsuario, senha) {
+  const nome = String(nomeUsuario || "").trim();
+  const senhaLimpa = String(senha || "");
+  if (!nome || !senhaLimpa) {
+    return;
+  }
+
+  const chave = nome.toLowerCase();
+  const senhas = obterSenhasSalvas();
+  senhas[chave] = senhaLimpa;
+  persistirSenhasSalvas(senhas);
+}
+
+function removerSenhaSalva(nomeUsuario) {
+  const nome = String(nomeUsuario || "").trim();
+  if (!nome) {
+    return;
+  }
+  const chave = nome.toLowerCase();
+  const senhas = obterSenhasSalvas();
+  if (Object.prototype.hasOwnProperty.call(senhas, chave)) {
+    delete senhas[chave];
+    persistirSenhasSalvas(senhas);
+  }
+}
+
+function obterSenhaSalva(nomeUsuario) {
+  const nome = String(nomeUsuario || "").trim();
+  if (!nome) {
+    return "";
+  }
+  const chave = nome.toLowerCase();
+  const senhas = obterSenhasSalvas();
+  return String(senhas[chave] || "");
+}
+
+function obterPreferenciasSalvarSenha() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_PREF_SALVAR_SENHA);
+    const dados = JSON.parse(bruto || "{}");
+    if (!dados || typeof dados !== "object" || Array.isArray(dados)) {
+      return {};
+    }
+    return dados;
+  } catch (_err) {
+    return {};
+  }
+}
+
+function persistirPreferenciasSalvarSenha(preferencias) {
+  try {
+    localStorage.setItem(CHAVE_PREF_SALVAR_SENHA, JSON.stringify(preferencias));
+  } catch (_err) {
+    // Ignore localStorage failures.
+  }
+}
+
+function obterPreferenciaSalvarSenha(nomeUsuario) {
+  const nome = String(nomeUsuario || "").trim().toLowerCase();
+  if (!nome) {
+    return null;
+  }
+  const preferencias = obterPreferenciasSalvarSenha();
+  if (!Object.prototype.hasOwnProperty.call(preferencias, nome)) {
+    return null;
+  }
+  return Boolean(preferencias[nome]);
+}
+
+function definirPreferenciaSalvarSenha(nomeUsuario, salvar) {
+  const nome = String(nomeUsuario || "").trim().toLowerCase();
+  if (!nome) {
+    return;
+  }
+  const preferencias = obterPreferenciasSalvarSenha();
+  preferencias[nome] = Boolean(salvar);
+  persistirPreferenciasSalvarSenha(preferencias);
+}
+
+function devePerguntarSalvarSenha(nomeUsuario, senhaAtual) {
+  const senhaSalva = obterSenhaSalva(nomeUsuario);
+  const preferencia = obterPreferenciaSalvarSenha(nomeUsuario);
+
+  // Primeira vez: ainda não decidiu para este usuário.
+  if (!senhaSalva && preferencia === null) {
+    return { perguntar: true, motivo: "primeiro_uso" };
+  }
+
+  // Senha mudou em relação à salva localmente.
+  if (senhaSalva && senhaSalva !== senhaAtual) {
+    return { perguntar: true, motivo: "senha_alterada" };
+  }
+
+  return { perguntar: false, motivo: "sem_alteracao" };
+}
+
+function aplicarEscolhaSalvarSenha(nomeUsuario, senhaAtual, salvarSenha) {
+  definirPreferenciaSalvarSenha(nomeUsuario, salvarSenha);
+  if (salvarSenha) {
+    registrarSenhaSalva(nomeUsuario, senhaAtual);
+  } else {
+    removerSenhaSalva(nomeUsuario);
+  }
+}
+
+function mostrarPromptSalvarSenha(nomeUsuario, senhaAtual, motivo) {
+  const idPrompt = "promptSalvarSenha";
+  const existente = document.getElementById(idPrompt);
+  if (existente) {
+    existente.remove();
+  }
+
+  const prompt = document.createElement("div");
+  prompt.id = idPrompt;
+  prompt.className = "senha-save-prompt";
+
+  const titulo = motivo === "senha_alterada" ? "Senha alterada detectada" : "Salvar senha neste computador?";
+  const descricao =
+    motivo === "senha_alterada"
+      ? `Foi detectada uma senha diferente para ${nomeUsuario}. Deseja atualizar a senha salva localmente?`
+      : `Primeiro login de ${nomeUsuario} neste navegador. Deseja salvar a senha localmente?`;
+
+  prompt.innerHTML = `
+    <div class="senha-save-title">${titulo}</div>
+    <div class="senha-save-text">${descricao}</div>
+    <label class="switch-inline senha-save-switch" for="salvarSenhaToggle">
+      <input id="salvarSenhaToggle" type="checkbox" class="switch-input" checked>
+      <span class="switch-slider" aria-hidden="true"></span>
+      <span class="switch-text">Salvar senha localmente</span>
+    </label>
+    <div class="senha-save-actions">
+      <button type="button" class="btn secondary" id="senhaSaveCancelar">Agora nao</button>
+      <button type="button" class="btn" id="senhaSaveAplicar">Aplicar</button>
+    </div>
+  `;
+
+  document.body.appendChild(prompt);
+
+  const btnAplicar = prompt.querySelector("#senhaSaveAplicar");
+  const btnCancelar = prompt.querySelector("#senhaSaveCancelar");
+  const toggle = prompt.querySelector("#salvarSenhaToggle");
+
+  btnAplicar?.addEventListener("click", () => {
+    aplicarEscolhaSalvarSenha(nomeUsuario, senhaAtual, Boolean(toggle?.checked));
+    prompt.remove();
+  });
+
+  btnCancelar?.addEventListener("click", () => {
+    prompt.remove();
+  });
+}
+
+function registrarUsuarioSalvo(nomeUsuario) {
+  const nome = String(nomeUsuario || "").trim();
+  if (!nome) {
+    return;
+  }
+
+  const lista = obterUsuariosSalvos().filter((item) => item.toLowerCase() !== nome.toLowerCase());
+  lista.unshift(nome);
+  persistirUsuariosSalvos(lista);
+}
+
+function renderizarSugestoesUsuarios(filtro = "") {
+  const box = document.getElementById("usuariosSugestoes");
+  const inputUsuario = document.getElementById("usuario");
+  if (!box || !inputUsuario) {
+    return;
+  }
+
+  const termo = String(filtro || "").trim().toLowerCase();
+  const usuarios = obterUsuariosSalvos().filter((nome) => nome.toLowerCase().includes(termo));
+
+  box.innerHTML = "";
+  if (!usuarios.length) {
+    box.classList.add("hidden");
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  usuarios.forEach((nome) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "login-suggestion-item";
+    btn.textContent = nome;
+    btn.addEventListener("click", () => {
+      inputUsuario.value = nome;
+      box.classList.add("hidden");
+      document.getElementById("senha")?.focus();
+    });
+    fragment.appendChild(btn);
+  });
+
+  box.appendChild(fragment);
+  box.classList.remove("hidden");
+}
+
+function configurarSugestoesUsuariosLogin() {
+  const wrapper = document.getElementById("loginUsuarioWrapper");
+  const inputUsuario = document.getElementById("usuario");
+  const box = document.getElementById("usuariosSugestoes");
+  if (!wrapper || !inputUsuario || !box) {
+    return;
+  }
+
+  const mostrar = () => renderizarSugestoesUsuarios(inputUsuario.value);
+
+  inputUsuario.addEventListener("focus", mostrar);
+  inputUsuario.addEventListener("click", mostrar);
+  inputUsuario.addEventListener("input", mostrar);
+
+  document.addEventListener("click", (event) => {
+    if (!wrapper.contains(event.target)) {
+      box.classList.add("hidden");
+    }
+  });
+}
+
+function renderizarSugestaoSenha() {
+  const box = document.getElementById("senhaSugestoes");
+  const inputUsuario = document.getElementById("usuario");
+  const inputSenha = document.getElementById("senha");
+  if (!box || !inputUsuario || !inputSenha) {
+    return;
+  }
+
+  const usuario = inputUsuario.value.trim();
+  const senhaSalva = obterSenhaSalva(usuario);
+
+  box.innerHTML = "";
+  if (!usuario || !senhaSalva) {
+    box.classList.add("hidden");
+    return;
+  }
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "login-suggestion-item";
+  btn.textContent = `Usar senha salva para ${usuario}`;
+  btn.addEventListener("click", () => {
+    inputSenha.value = senhaSalva;
+    box.classList.add("hidden");
+  });
+
+  box.appendChild(btn);
+  box.classList.remove("hidden");
+}
+
+function configurarSugestaoSenhaLogin() {
+  const wrapper = document.getElementById("loginSenhaWrapper");
+  const inputSenha = document.getElementById("senha");
+  const box = document.getElementById("senhaSugestoes");
+  if (!wrapper || !inputSenha || !box) {
+    return;
+  }
+
+  // Evita sugestoes nativas (ex: senha forte/salva do navegador) e prioriza apenas a sugestao local da aplicacao.
+  inputSenha.setAttribute("autocomplete", "off");
+  inputSenha.setAttribute("autocapitalize", "none");
+  inputSenha.setAttribute("spellcheck", "false");
+  inputSenha.setAttribute("data-lpignore", "true");
+  inputSenha.setAttribute("data-1p-ignore", "true");
+
+  const mostrar = () => renderizarSugestaoSenha();
+
+  inputSenha.addEventListener("focus", mostrar);
+  inputSenha.addEventListener("click", mostrar);
+  document.getElementById("usuario")?.addEventListener("input", () => {
+    box.classList.add("hidden");
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!wrapper.contains(event.target)) {
+      box.classList.add("hidden");
+    }
+  });
+}
 
 const modalComputadorState = {
   aberto: false,
@@ -238,6 +576,9 @@ function trocar(id, botao = null) {
   if (!usuarioLogado && id !== "login") {
     return;
   }
+  if ((id === "aprovacoes" || id === "usuarios") && !adminLogado) {
+    return;
+  }
 
   document.querySelectorAll(".section").forEach((sec) => sec.classList.remove("active"));
   const section = document.getElementById(id);
@@ -258,6 +599,72 @@ function trocar(id, botao = null) {
   if (id === "relatorios") {
     carregarRelatorios();
   }
+  if (id === "aprovacoes") {
+    carregarAprovacoes();
+  }
+  if (id === "usuarios") {
+    carregarUsuarios();
+  }
+}
+
+function atualizarMenuAdmin(pendentes = 0) {
+  const botaoAprovacoes = document.getElementById("aprovacoesBtn");
+  const botaoUsuarios = document.getElementById("usuariosBtn");
+  if (!botaoAprovacoes) {
+    return;
+  }
+
+  if (!adminLogado) {
+    botaoAprovacoes.classList.add("hidden");
+    botaoAprovacoes.classList.remove("has-pending");
+    botaoAprovacoes.textContent = "Aprovacoes (0)";
+    if (botaoUsuarios) {
+      botaoUsuarios.classList.add("hidden");
+    }
+    return;
+  }
+
+  botaoAprovacoes.classList.remove("hidden");
+  botaoAprovacoes.classList.toggle("has-pending", pendentes > 0);
+  botaoAprovacoes.textContent = `Aprovacoes (${pendentes})`;
+  if (botaoUsuarios) {
+    botaoUsuarios.classList.remove("hidden");
+  }
+}
+
+function iniciarPollingSessao() {
+  if (pollingSessaoId) {
+    clearInterval(pollingSessaoId);
+    pollingSessaoId = null;
+  }
+
+  if (!usuarioLogado) {
+    return;
+  }
+
+  pollingSessaoId = setInterval(async () => {
+    try {
+      const data = await api("/session");
+      const eraAdmin = adminLogado;
+      const ehAdminAgora = Boolean(data.is_admin);
+
+      adminLogado = ehAdminAgora;
+      atualizarMenuAdmin(data.pendentes_aprovacao || 0);
+
+      // Se perdeu admin enquanto estava em tela restrita, volta para dashboard.
+      if (eraAdmin && !ehAdminAgora) {
+        const secaoAtiva = document.querySelector(".section.active");
+        const idAtivo = secaoAtiva ? secaoAtiva.id : "";
+        if (idAtivo === "aprovacoes" || idAtivo === "usuarios") {
+          trocar("dashboard");
+          await carregarDashboard();
+        }
+        setStatus("filtroStatus", "Seu perfil foi atualizado: acesso administrativo removido.", true);
+      }
+    } catch (_err) {
+      // Ignore intermittent polling errors.
+    }
+  }, 5000);
 }
 
 function setStatus(id, texto, erro = false) {
@@ -539,22 +946,60 @@ function limparFiltrosDashboard() {
 
 async function logar() {
   const usuario = document.getElementById("usuario").value.trim();
-  if (!usuario) {
-    setStatus("loginStatus", "Digite um nome para entrar.", true);
+  const senha = document.getElementById("senha").value.trim();
+  if (!usuario || !senha) {
+    setStatus("loginStatus", "Informe usuario e senha para entrar.", true);
     return;
   }
 
   try {
     const data = await api("/login", {
       method: "POST",
-      body: JSON.stringify({ usuario })
+      body: JSON.stringify({ usuario, senha })
     });
 
     usuarioLogado = data.usuario;
+    adminLogado = Boolean(data.is_admin);
+    registrarUsuarioSalvo(data.usuario);
+
+    const decisaoSenha = devePerguntarSalvarSenha(data.usuario, senha);
+    if (decisaoSenha.perguntar) {
+      mostrarPromptSalvarSenha(data.usuario, senha, decisaoSenha.motivo);
+    } else {
+      const preferenciaSalvar = obterPreferenciaSalvarSenha(data.usuario);
+      if (preferenciaSalvar) {
+        registrarSenhaSalva(data.usuario, senha);
+      }
+    }
+
+    renderizarSugestoesUsuarios();
+    renderizarSugestaoSenha();
     setStatus("loginStatus", `Bem-vindo, ${usuarioLogado}.`);
     document.getElementById("logoutBtn").classList.remove("hidden");
+    atualizarMenuAdmin(data.pendentes_aprovacao || 0);
+    iniciarPollingSessao();
     trocar("dashboard");
     await carregarDashboard();
+  } catch (err) {
+    setStatus("loginStatus", err.message, true);
+  }
+}
+
+async function registrar() {
+  const usuario = document.getElementById("usuario").value.trim();
+  const senha = document.getElementById("senha").value.trim();
+
+  if (!usuario || !senha) {
+    setStatus("loginStatus", "Informe usuario e senha para registrar.", true);
+    return;
+  }
+
+  try {
+    const data = await api("/registrar", {
+      method: "POST",
+      body: JSON.stringify({ usuario, senha })
+    });
+    setStatus("loginStatus", data.mensagem || "Registro concluido, aguarde um Administrador aprovar seu acesso.");
   } catch (err) {
     setStatus("loginStatus", err.message, true);
   }
@@ -568,7 +1013,13 @@ async function sair() {
   }
 
   usuarioLogado = "";
+  adminLogado = false;
+  if (pollingSessaoId) {
+    clearInterval(pollingSessaoId);
+    pollingSessaoId = null;
+  }
   document.getElementById("logoutBtn").classList.add("hidden");
+  atualizarMenuAdmin(0);
   setStatus("loginStatus", "Sessao encerrada.");
   trocar("login");
 }
@@ -577,11 +1028,292 @@ async function validarSessaoInicial() {
   try {
     const data = await api("/session");
     usuarioLogado = data.usuario;
+    adminLogado = Boolean(data.is_admin);
+    registrarUsuarioSalvo(data.usuario);
+    renderizarSugestoesUsuarios();
     document.getElementById("logoutBtn").classList.remove("hidden");
+    atualizarMenuAdmin(data.pendentes_aprovacao || 0);
+    iniciarPollingSessao();
     trocar("dashboard");
     await carregarDashboard();
   } catch (_err) {
+    adminLogado = false;
+    if (pollingSessaoId) {
+      clearInterval(pollingSessaoId);
+      pollingSessaoId = null;
+    }
+    atualizarMenuAdmin(0);
     trocar("login");
+  }
+}
+
+async function carregarAprovacoes() {
+  if (!adminLogado) {
+    return;
+  }
+
+  setStatus("aprovacaoStatus", "Carregando usuarios pendentes...");
+  try {
+    const data = await api("/admin/usuarios");
+    const usuarios = data.usuarios || [];
+    const pendentes = data.pendentes_aprovacao || 0;
+
+    atualizarMenuAdmin(pendentes);
+    document.getElementById("totalPendentes").textContent = String(pendentes);
+
+    const lista = document.getElementById("listaAprovacoes");
+    lista.innerHTML = "";
+
+    // Filtrar apenas usuários NÃO aprovados
+    const usuariosPendentes = usuarios.filter(u => !u.aprovado && !u.is_admin);
+
+    if (!usuariosPendentes.length) {
+      lista.innerHTML = '<div class="card"><h4>Nenhum usuario pendente</h4><p class="meta">Todos os usuarios foram aprovados ou sao administradores.</p></div>';
+      setStatus("aprovacaoStatus", "Sem usuarios para revisar.");
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    usuariosPendentes.forEach((u) => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      // Toggle de aprovação
+      const label = document.createElement("label");
+      label.className = "switch-inline approval-switch";
+      label.setAttribute("for", `aprovado-${escapeHtml(u.usuario)}`);
+
+      const input = document.createElement("input");
+      input.id = `aprovado-${escapeHtml(u.usuario)}`;
+      input.type = "checkbox";
+      input.className = "switch-input";
+      input.checked = Boolean(u.aprovado);
+      input.addEventListener("change", async () => {
+        await atualizarAprovacaoUsuario(u.usuario, input.checked);
+      });
+
+      const slider = document.createElement("span");
+      slider.className = "switch-slider";
+      slider.setAttribute("aria-hidden", "true");
+
+      const text = document.createElement("span");
+      text.className = "switch-text";
+      text.textContent = input.checked ? "Acesso ativo" : "Pendente";
+
+      input.addEventListener("change", () => {
+        text.textContent = input.checked ? "Acesso ativo" : "Pendente";
+      });
+
+      label.appendChild(input);
+      label.appendChild(slider);
+      label.appendChild(text);
+
+      card.innerHTML = `
+        <div class="approval-row">
+          <div class="approval-meta">
+            <h4>${escapeHtml(u.usuario)}</h4>
+            <div class="meta">Cadastro: ${escapeHtml(u.data_cadastro || "-")}</div>
+            <div class="meta">Solicitado em: ${escapeHtml(u.data_cadastro || "-")}</div>
+          </div>
+        </div>
+      `;
+
+      card.querySelector(".approval-row").appendChild(label);
+      fragment.appendChild(card);
+    });
+
+    lista.appendChild(fragment);
+    setStatus("aprovacaoStatus", "Ative o acesso dos usuarios pendentes.");
+  } catch (err) {
+    setStatus("aprovacaoStatus", err.message, true);
+  }
+}
+
+async function atualizarAprovacaoUsuario(nomeUsuario, aprovado) {
+  try {
+    const data = await api(`/admin/usuarios/${encodeURIComponent(nomeUsuario)}/aprovar`, {
+      method: "PATCH",
+      body: JSON.stringify({ aprovado })
+    });
+    atualizarMenuAdmin(data.pendentes_aprovacao || 0);
+    document.getElementById("totalPendentes").textContent = String(data.pendentes_aprovacao || 0);
+    setStatus("aprovacaoStatus", data.mensagem || "Acesso atualizado.");
+    await carregarAprovacoes();
+  } catch (err) {
+    setStatus("aprovacaoStatus", err.message, true);
+    await carregarAprovacoes();
+  }
+}
+
+async function carregarUsuarios() {
+  if (!adminLogado) {
+    return;
+  }
+
+  setStatus("usuariosStatus", "Carregando usuarios...");
+  try {
+    const data = await api("/admin/usuarios");
+    const usuarios = data.usuarios || [];
+
+    const lista = document.getElementById("listaUsuarios");
+    lista.innerHTML = "";
+
+    if (!usuarios.length) {
+      lista.innerHTML = '<div class="card"><h4>Nenhum usuario cadastrado</h4></div>';
+      setStatus("usuariosStatus", "Nenhum usuario cadastrado.");
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    usuarios.forEach((u) => {
+      const card = document.createElement("div");
+      card.className = "card usuario-card";
+
+      // Container para informações
+      const infoContainer = document.createElement("div");
+      infoContainer.className = "usuario-info";
+
+      // Campo de username
+      const usuarioLabel = document.createElement("label");
+      usuarioLabel.textContent = "Usuario:";
+      const usuarioInput = document.createElement("input");
+      usuarioInput.type = "text";
+      usuarioInput.value = escapeHtml(u.usuario);
+      usuarioInput.placeholder = "Nome de usuario";
+      usuarioInput.disabled = true;
+
+      const usuarioDisplay = document.createElement("div");
+      usuarioDisplay.className = "input-display";
+      usuarioDisplay.appendChild(usuarioLabel);
+      usuarioDisplay.appendChild(usuarioInput);
+
+      // Campo de status
+      const statusLabel = document.createElement("label");
+      statusLabel.textContent = "Cargo:";
+      const statusDisplay = document.createElement("div");
+      statusDisplay.className = "status-badge";
+      statusDisplay.textContent = u.is_admin ? "Administrador" : "Usuario";
+      statusDisplay.classList.add(u.is_admin ? "badge-admin" : "badge-user");
+
+      const statusContainer = document.createElement("div");
+      statusContainer.className = "input-display";
+      statusContainer.appendChild(statusLabel);
+      statusContainer.appendChild(statusDisplay);
+
+      infoContainer.appendChild(usuarioDisplay);
+      infoContainer.appendChild(statusContainer);
+
+      // Container de controles
+      const controlsContainer = document.createElement("div");
+      controlsContainer.className = "usuario-controls";
+
+      // Botão para alterar senha
+      const senhaBtn = document.createElement("button");
+      senhaBtn.className = "btn small";
+      senhaBtn.textContent = "Alterar Senha";
+      senhaBtn.onclick = () => mostrarAlterarSenha(u.usuario);
+
+      // Botão para renomear
+      const renomearBtn = document.createElement("button");
+      renomearBtn.className = "btn small";
+      renomearBtn.textContent = "Renomear";
+      renomearBtn.onclick = () => mostrarRenomear(u.usuario);
+
+      // Toggle de admin
+      const labelAdmin = document.createElement("label");
+      labelAdmin.className = "switch-inline admin-switch";
+      labelAdmin.setAttribute("for", `admin-${escapeHtml(u.usuario)}`);
+
+      const inputAdmin = document.createElement("input");
+      inputAdmin.id = `admin-${escapeHtml(u.usuario)}`;
+      inputAdmin.type = "checkbox";
+      inputAdmin.className = "switch-input";
+      inputAdmin.checked = Boolean(u.is_admin);
+      inputAdmin.addEventListener("change", async () => {
+        await atualizarStatusAdmin(u.usuario, inputAdmin.checked);
+      });
+
+      const sliderAdmin = document.createElement("span");
+      sliderAdmin.className = "switch-slider";
+      const textAdmin = document.createElement("span");
+      textAdmin.className = "switch-text";
+      textAdmin.textContent = inputAdmin.checked ? "Admin" : "Usuario";
+
+      inputAdmin.addEventListener("change", () => {
+        textAdmin.textContent = inputAdmin.checked ? "Admin" : "Usuario";
+      });
+
+      labelAdmin.appendChild(inputAdmin);
+      labelAdmin.appendChild(sliderAdmin);
+      labelAdmin.appendChild(textAdmin);
+
+      controlsContainer.appendChild(senhaBtn);
+      controlsContainer.appendChild(renomearBtn);
+      controlsContainer.appendChild(labelAdmin);
+
+      card.appendChild(infoContainer);
+      card.appendChild(controlsContainer);
+      fragment.appendChild(card);
+    });
+
+    lista.appendChild(fragment);
+    setStatus("usuariosStatus", "");
+  } catch (err) {
+    setStatus("usuariosStatus", err.message, true);
+  }
+}
+
+async function atualizarStatusAdmin(nomeUsuario, ehAdmin) {
+  try {
+    const data = await api(`/admin/usuarios/${encodeURIComponent(nomeUsuario)}/admin`, {
+      method: "PATCH",
+      body: JSON.stringify({ eh_admin: ehAdmin })
+    });
+    setStatus("usuariosStatus", data.mensagem || "Status de admin atualizado.");
+    await carregarUsuarios();
+  } catch (err) {
+    setStatus("usuariosStatus", err.message, true);
+    await carregarUsuarios();
+  }
+}
+
+async function mostrarAlterarSenha(nomeUsuario) {
+  const senhaPrompt = prompt(`Digite a nova senha para ${nomeUsuario}:`, "");
+  if (senhaPrompt === null) return;
+
+  if (senhaPrompt.length < 3) {
+    setStatus("usuariosStatus", "Senha precisa ter ao menos 3 caracteres", true);
+    return;
+  }
+
+  try {
+    const data = await api(`/admin/usuarios/${encodeURIComponent(nomeUsuario)}/senha`, {
+      method: "PATCH",
+      body: JSON.stringify({ senha: senhaPrompt })
+    });
+    setStatus("usuariosStatus", data.mensagem || "Senha alterada com sucesso.");
+  } catch (err) {
+    setStatus("usuariosStatus", err.message, true);
+  }
+}
+
+async function mostrarRenomear(nomeAtual) {
+  const nomeNovo = prompt(`Digite o novo nome de usuario (atual: ${nomeAtual}):`, nomeAtual);
+  if (nomeNovo === null) return;
+
+  if (nomeNovo === nomeAtual) {
+    return;
+  }
+
+  try {
+    const data = await api(`/admin/usuarios/${encodeURIComponent(nomeAtual)}/renomear`, {
+      method: "PATCH",
+      body: JSON.stringify({ nome_novo: nomeNovo })
+    });
+    setStatus("usuariosStatus", data.mensagem || "Usuario renomeado com sucesso.");
+    await carregarUsuarios();
+  } catch (err) {
+    setStatus("usuariosStatus", err.message, true);
   }
 }
 
@@ -829,8 +1561,41 @@ async function deletarRelatorio(relatorioId) {
   }
 }
 
+function configurarAtalhosTeclado() {
+  const inputUsuario = document.getElementById("usuario");
+  const inputSenha = document.getElementById("senha");
+  const inputBusca = document.getElementById("busca");
+
+  const acionarLogin = (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    logar();
+  };
+
+  const acionarBusca = (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    buscar();
+  };
+
+  if (inputUsuario) {
+    inputUsuario.addEventListener("keydown", acionarLogin);
+  }
+  if (inputSenha) {
+    inputSenha.addEventListener("keydown", acionarLogin);
+  }
+  if (inputBusca) {
+    inputBusca.addEventListener("keydown", acionarBusca);
+  }
+}
+
 window.trocar = trocar;
 window.logar = logar;
+window.registrar = registrar;
 window.sair = sair;
 window.buscar = buscar;
 window.salvar = salvar;
@@ -842,4 +1607,7 @@ window.alternarGrupoFiltro = alternarGrupoFiltro;
 window.fecharModalComputador = fecharModalComputador;
 
 iniciarInteracoesModal();
+configurarSugestoesUsuariosLogin();
+configurarSugestaoSenhaLogin();
+configurarAtalhosTeclado();
 validarSessaoInicial();

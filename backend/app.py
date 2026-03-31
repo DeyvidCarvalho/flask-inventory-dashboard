@@ -6,6 +6,33 @@ from functools import wraps
 
 from flask import Flask, Response, jsonify, render_template, request, session
 
+try:
+    from .users_manager import (
+        registrar_usuario,
+        validar_login,
+        contar_pendentes,
+        listar_usuarios,
+        aprovar_usuario,
+        fazer_admin,
+        alterar_senha,
+        renomear_usuario,
+        obter_usuario,
+        setup_admin_inicial,
+    )
+except ImportError:
+    from users_manager import (
+        registrar_usuario,
+        validar_login,
+        contar_pendentes,
+        listar_usuarios,
+        aprovar_usuario,
+        fazer_admin,
+        alterar_senha,
+        renomear_usuario,
+        obter_usuario,
+        setup_admin_inicial,
+    )
+
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 DEFAULT_DATABASE_PATH = os.path.join(BASE_DIR, "inventario.db")
@@ -46,14 +73,49 @@ def usuario_atual():
     return session.get("usuario")
 
 
+def admin_atual():
+    return bool(session.get("is_admin"))
+
+
+def sincronizar_sessao_usuario():
+    usuario = usuario_atual()
+    if not usuario:
+        return None
+
+    dados_usuario = obter_usuario(usuario)
+    if not dados_usuario or not dados_usuario.get("aprovado", False):
+        session.clear()
+        return None
+
+    # Mantem a sessão atualizada mesmo após renomear usuário ou alterar cargo.
+    session["usuario"] = dados_usuario["usuario"]
+    session["is_admin"] = bool(dados_usuario.get("is_admin", False))
+    return dados_usuario
+
+
 def login_obrigatorio(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not usuario_atual():
+        if not sincronizar_sessao_usuario():
             return resposta_erro("Nao autenticado", 401)
         return func(*args, **kwargs)
 
     return wrapper
+
+
+def admin_obrigatorio(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        dados_usuario = sincronizar_sessao_usuario()
+        if not dados_usuario or not bool(dados_usuario.get("is_admin", False)):
+            return resposta_erro("Acesso restrito ao administrador", 403)
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def timestamp_atual():
+    return datetime.now().strftime("%d/%m/%Y %H:%M")
 
 
 def inicializar_banco():
@@ -127,6 +189,7 @@ def garantir_banco_inicializado():
     if app.config["DB_INITIALIZED"]:
         return
     inicializar_banco()
+    setup_admin_inicial()  # Configura admin inicial se não existir
     app.config["DB_INITIALIZED"] = True
 
 
@@ -229,20 +292,58 @@ def home():
     return render_template("index.html")
 
 # =====================
-# LOGIN SIMPLES
+# AUTENTICACAO
 # =====================
-@app.route("/login", methods=["POST"])
-def login():
+@app.route("/registrar", methods=["POST"])
+def registrar():
     dados = request.json or {}
     usuario = (dados.get("usuario") or "").strip()
+    senha = (dados.get("senha") or "").strip()
 
     if len(usuario) < 2:
         return resposta_erro("Usuario precisa ter ao menos 2 caracteres", 400)
     if len(usuario) > 60:
         return resposta_erro("Usuario muito longo", 400)
+    if len(senha) < 3:
+        return resposta_erro("Senha precisa ter ao menos 3 caracteres", 400)
+    if len(senha) > 120:
+        return resposta_erro("Senha muito longa", 400)
 
-    session["usuario"] = usuario
-    return resposta_ok({"usuario": usuario})
+    sucesso, mensagem = registrar_usuario(usuario, senha)
+    if not sucesso:
+        return resposta_erro(mensagem, 409)
+
+    return resposta_ok({"mensagem": mensagem}, 201)
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    dados = request.json or {}
+    usuario = (dados.get("usuario") or "").strip()
+    senha = (dados.get("senha") or "").strip()
+
+    if len(usuario) < 2:
+        return resposta_erro("Usuario precisa ter ao menos 2 caracteres", 400)
+    if len(usuario) > 60:
+        return resposta_erro("Usuario muito longo", 400)
+    if not senha:
+        return resposta_erro("Senha obrigatoria", 400)
+
+    sucesso, mensagem, usuario_dados = validar_login(usuario, senha)
+    if not sucesso:
+        return resposta_erro(mensagem, 401 if "invalido" in mensagem.lower() else 403)
+
+    session["usuario"] = usuario_dados["usuario"]
+    session["is_admin"] = usuario_dados.get("is_admin", False)
+
+    pendentes = contar_pendentes() if usuario_dados.get("is_admin", False) else 0
+    return resposta_ok(
+        {
+            "usuario": usuario_dados["usuario"],
+            "is_admin": usuario_dados.get("is_admin", False),
+            "pendentes_aprovacao": pendentes,
+        }
+    )
 
 
 @app.route("/logout", methods=["POST"])
@@ -253,10 +354,93 @@ def logout():
 
 @app.route("/session")
 def sessao_atual():
-    usuario = usuario_atual()
-    if not usuario:
+    dados_usuario = sincronizar_sessao_usuario()
+    if not dados_usuario:
         return resposta_erro("Nao autenticado", 401)
-    return resposta_ok({"usuario": usuario})
+
+    is_admin = bool(dados_usuario.get("is_admin", False))
+    pendentes = 0
+    if is_admin:
+        pendentes = contar_pendentes()
+
+    return resposta_ok(
+        {
+            "usuario": dados_usuario["usuario"],
+            "is_admin": is_admin,
+            "pendentes_aprovacao": pendentes,
+        }
+    )
+
+
+@app.route("/admin/usuarios")
+@admin_obrigatorio
+def admin_listar_usuarios():
+    usuarios = listar_usuarios()
+    pendentes = contar_pendentes()
+    return resposta_ok({"usuarios": usuarios, "pendentes_aprovacao": pendentes})
+
+
+@app.route("/admin/usuarios/<string:nome_usuario>/aprovar", methods=["PATCH"])
+@admin_obrigatorio
+def admin_aprovar_usuario(nome_usuario):
+    dados = request.json or {}
+    aprovado = bool(dados.get("aprovado"))
+
+    sucesso, mensagem = aprovar_usuario(nome_usuario, aprovado, usuario_atual())
+    if not sucesso:
+        return resposta_erro(mensagem, 404 if "nao encontrado" in mensagem.lower() else 400)
+
+    pendentes = contar_pendentes()
+    return resposta_ok(
+        {"mensagem": mensagem, "aprovado": aprovado, "pendentes_aprovacao": pendentes}
+    )
+
+
+@app.route("/admin/usuarios/<string:nome_usuario>/admin", methods=["PATCH"])
+@admin_obrigatorio
+def admin_fazer_admin(nome_usuario):
+    dados = request.json or {}
+    eh_admin = bool(dados.get("eh_admin"))
+
+    sucesso, mensagem = fazer_admin(nome_usuario, eh_admin, usuario_atual())
+    if not sucesso:
+        return resposta_erro(mensagem, 404 if "nao encontrado" in mensagem.lower() else 400)
+
+    return resposta_ok(
+        {"mensagem": mensagem, "eh_admin": eh_admin}
+    )
+
+
+@app.route("/admin/usuarios/<string:nome_usuario>/senha", methods=["PATCH"])
+@admin_obrigatorio
+def admin_alterar_senha(nome_usuario):
+    dados = request.json or {}
+    senha_nova = (dados.get("senha") or "").strip()
+
+    if not senha_nova:
+        return resposta_erro("Senha obrigatoria", 400)
+
+    sucesso, mensagem = alterar_senha(nome_usuario, senha_nova)
+    if not sucesso:
+        return resposta_erro(mensagem, 404 if "nao encontrado" in mensagem.lower() else 400)
+
+    return resposta_ok({"mensagem": mensagem})
+
+
+@app.route("/admin/usuarios/<string:nome_usuario>/renomear", methods=["PATCH"])
+@admin_obrigatorio
+def admin_renomear_usuario(nome_usuario):
+    dados = request.json or {}
+    nome_novo = (dados.get("nome_novo") or "").strip()
+
+    if not nome_novo:
+        return resposta_erro("Novo usuario obrigatorio", 400)
+
+    sucesso, mensagem = renomear_usuario(nome_usuario, nome_novo)
+    if not sucesso:
+        return resposta_erro(mensagem, 404 if "nao encontrado" in mensagem.lower() else 400)
+
+    return resposta_ok({"mensagem": mensagem, "nome_novo": nome_novo})
 
 # =====================
 # DASHBOARD

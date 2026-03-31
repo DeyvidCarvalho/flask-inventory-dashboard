@@ -93,6 +93,11 @@ body {
   border-color: rgba(255, 0, 0, 0.45);
 }
 
+#aprovacoesBtn.has-pending {
+  background: rgba(255, 0, 0, 0.24);
+  border-color: rgba(255, 0, 0, 0.55);
+}
+
 .main {
   padding: 28px;
   min-width: 0;
@@ -391,6 +396,120 @@ body {
   font-size: 14px;
 }
 
+.auth-actions {
+  margin-top: 10px;
+}
+
+.approval-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.approval-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.approval-switch {
+  margin-top: 0;
+}
+
+.approval-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-switch {
+  margin-top: 0;
+}
+
+.admin-switch .switch-slider {
+  border-color: rgba(168, 85, 247, 0.55);
+  background: linear-gradient(180deg, #6b21a8 0%, #581c87 100%);
+}
+
+.admin-switch .switch-input:checked + .switch-slider {
+  border-color: rgba(168, 85, 247, 0.85);
+  background: linear-gradient(180deg, #a855f7 0%, #9333ea 100%);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 0 2px rgba(168, 85, 247, 0.15);
+}
+
+  .usuario-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .usuario-info {
+    display: grid;
+    gap: 10px;
+  }
+
+  .input-display {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .input-display label {
+    font-size: 12px;
+    color: var(--text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .input-display input {
+    background: rgba(2, 6, 23, 0.8);
+    border: 1px solid var(--line);
+    color: var(--white);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .input-display input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    width: fit-content;
+  }
+
+  .badge-admin {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+  }
+
+  .badge-user {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+  }
+
+  .usuario-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn.small {
+    padding: 6px 12px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 100px;
+  }
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -584,6 +703,59 @@ body.modal-open {
   word-break: break-word;
 }
 
+.login-usuario-wrapper {
+  position: relative;
+  margin-top: 10px;
+}
+
+.login-senha-wrapper {
+  position: relative;
+  margin-top: 10px;
+}
+
+.login-usuario-wrapper input {
+  margin-top: 0;
+}
+
+.login-senha-wrapper input {
+  margin-top: 0;
+}
+
+.login-suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.98);
+  box-shadow: var(--shadow);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 30;
+}
+
+.login-suggestion-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--white);
+  padding: 10px 11px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+}
+
+.login-suggestion-item:last-child {
+  border-bottom: 0;
+}
+
+.login-suggestion-item:hover,
+.login-suggestion-item:focus-visible {
+  background: rgba(255, 0, 0, 0.18);
+  outline: none;
+}
+
 input,
 textarea {
   width: 100%;
@@ -651,6 +823,47 @@ textarea {
   color: var(--danger);
 }
 
+.senha-save-prompt {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(420px, calc(100vw - 28px));
+  background: linear-gradient(160deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+  z-index: 1000;
+  animation: senhaPromptIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.senha-save-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.senha-save-text {
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.senha-save-switch {
+  margin-top: 0;
+}
+
+.senha-save-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.senha-save-actions .btn {
+  margin-top: 0;
+}
+
 .hidden {
   display: none;
 }
@@ -663,6 +876,17 @@ textarea {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes senhaPromptIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

@@ -1,3 +1,5 @@
+import json
+import os
 import sqlite3
 
 import pytest
@@ -6,8 +8,17 @@ from backend.app import app
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     db_path = tmp_path / "test_inventario.db"
+    users_file = tmp_path / "users.json"
+
+    # Configurar arquivo de usuários usando monkeypatch para sobrescrever a função
+    monkeypatch.setenv("USERS_FILE", str(users_file))
+    
+    # Recarregar módulo após configurar variável de ambiente
+    import importlib
+    from backend import users_manager
+    importlib.reload(users_manager)
 
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
@@ -70,19 +81,58 @@ def client(tmp_path):
 
 
 def login(client):
-    response = client.post("/login", json={"usuario": "tester"})
+    response = client.post("/login", json={"usuario": "admin", "senha": "admin123"})
     assert response.status_code == 200
 
 
 def test_login_and_session(client):
-    response = client.post("/login", json={"usuario": "tester"})
+    response = client.post("/login", json={"usuario": "admin", "senha": "admin123"})
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["ok"] is True
-    assert payload["data"]["usuario"] == "tester"
+    assert payload["data"]["usuario"] == "admin"
+    assert payload["data"]["is_admin"] is True
 
     response = client.get("/session")
     assert response.status_code == 200
+
+
+def test_registro_pendente_e_aprovacao_admin(client):
+    register_response = client.post(
+        "/registrar",
+        json={"usuario": "colaborador", "senha": "123456"},
+    )
+    assert register_response.status_code == 201
+
+    pending_login = client.post(
+        "/login",
+        json={"usuario": "colaborador", "senha": "123456"},
+    )
+    assert pending_login.status_code == 403
+
+    login(client)
+
+    list_response = client.get("/admin/usuarios")
+    assert list_response.status_code == 200
+    payload = list_response.get_json()
+    assert payload["ok"] is True
+    usuario = next((u for u in payload["data"]["usuarios"] if u["usuario"] == "colaborador"), None)
+    assert usuario is not None
+    assert usuario["aprovado"] is False
+
+    approve_response = client.patch(
+        f"/admin/usuarios/{usuario['usuario']}/aprovar",
+        json={"aprovado": True},
+    )
+    assert approve_response.status_code == 200
+
+    client.post("/logout", json={})
+
+    approved_login = client.post(
+        "/login",
+        json={"usuario": "colaborador", "senha": "123456"},
+    )
+    assert approved_login.status_code == 200
 
 
 def test_dashboard_requires_auth(client):

@@ -1,21 +1,57 @@
+# Virtual Environments
 .venv/
 venv/
+env/
+ENV/
+
+# Python cache
 __pycache__/
 .pytest_cache/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
 
-# Environment and secrets
+# IDE e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment variables (never commit secrets)
 .env
+.env.local
 .env.*
 !.env.example
 
-# Local databases
+# Segurança: Credenciais e dados sensíveis
+users.json              # Contém senhas hasheadas de usuários
+users.json.bak         # Backup de usuários
+
+# Scripts pessoais com credenciais
+executar_rede_com_*.ps1     # Scripts de teste com senhas
+executar_*.ps1              # Scripts pessoais de execução
+
+# HTTPS/SSL Certificates (chaves privadas nunca commit)
+*.pem                  # Certificados e chaves privadas
+*.key                  # Chaves SSH/SSL
+*.crt                  # Certificados
+*.cer                  # Certificados Windows
+!README.md             # Documentação podem ter .pem na exemplo
+
+# Banco de dados (local e demo)
 *.db
 *.db-shm
 *.db-wal
+inventario.db
+inventario_demo.db
 
-# Editor and OS
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
+# Logs
+*.log
+logs/
+
+
