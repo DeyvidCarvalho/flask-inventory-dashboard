@@ -246,17 +246,47 @@ def expressao_cpu_categoria():
 
 
 def coluna_windows_disponivel(colunas):
+    mapa_colunas = {str(coluna).lower(): coluna for coluna in colunas}
     for nome in ["windows", "sistema_operacional", "sistema", "so", "os"]:
-        if nome in colunas:
-            return nome
+        coluna_real = mapa_colunas.get(nome)
+        if coluna_real:
+            return coluna_real
     return None
 
 
+def expressao_windows_origem(colunas):
+    mapa_colunas = {str(coluna).lower(): coluna for coluna in colunas}
+    candidatas = [
+        mapa_colunas[nome]
+        for nome in ["windows", "sistema_operacional", "sistema", "so", "os"]
+        if nome in mapa_colunas
+    ]
+    if not candidatas:
+        return "''"
+
+    partes = [f"NULLIF(TRIM({nome}), '')" for nome in candidatas]
+    if len(partes) == 1:
+        return partes[0]
+    return f"COALESCE({', '.join(partes)})"
+
+
 def expressao_windows_categoria(colunas):
-    coluna_windows = coluna_windows_disponivel(colunas)
-    if not coluna_windows:
+    if not coluna_windows_disponivel(colunas):
         return "'Nao informado'"
-    return f"COALESCE(NULLIF(TRIM({coluna_windows}), ''), 'Nao informado')"
+
+    origem = expressao_windows_origem(colunas)
+    origem_sem_espaco = (
+        f"LOWER(REPLACE(REPLACE(REPLACE(COALESCE({origem}, ''), ' ', ''), '-', ''), '_', ''))"
+    )
+
+    return f"""
+        CASE
+            WHEN TRIM(COALESCE({origem}, '')) = '' THEN 'Nao informado'
+            WHEN {origem_sem_espaco} LIKE '%windows11%' OR {origem_sem_espaco} LIKE '%win11%' THEN 'Windows 11'
+            WHEN {origem_sem_espaco} LIKE '%windows10%' OR {origem_sem_espaco} LIKE '%win10%' THEN 'Windows 10'
+            ELSE TRIM(COALESCE({origem}, 'Nao informado'))
+        END
+    """
 
 
 def lista_strings_unicas(valor):

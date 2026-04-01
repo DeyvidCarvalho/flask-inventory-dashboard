@@ -248,9 +248,9 @@ body {
   pointer-events: none;
   will-change: max-height, opacity, transform;
   transition:
-    max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.2s ease,
-    transform 0.22s ease;
+    max-height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    transform 0.24s ease;
 }
 
 .hidden-panel.is-open {
@@ -261,7 +261,10 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .hidden-panel {
-    transition: none;
+    transition:
+      max-height 0.2s ease,
+      opacity 0.16s ease,
+      transform 0.16s ease;
   }
 }
 
@@ -586,9 +589,7 @@ body {
   place-items: center;
   opacity: 0;
   pointer-events: none;
-  background: rgba(2, 6, 23, 0.35);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(2, 6, 23, 0.62);
   transition: opacity 0.2s ease;
   z-index: 120;
 }
@@ -596,6 +597,10 @@ body {
 .computer-overlay.open {
   opacity: 1;
   pointer-events: auto;
+}
+
+.computer-overlay.dragging {
+  background: rgba(2, 6, 23, 0.62);
 }
 
 .computer-floating-card {
@@ -613,11 +618,23 @@ body {
   transform: translate(-50%, -50%) scale(1);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
   cursor: default;
+  will-change: transform;
+  contain: layout paint;
+}
+
+.computer-overlay.open .computer-floating-card {
+  animation: floatingCardIn 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .computer-floating-card:hover {
-  box-shadow: 0 34px 80px rgba(2, 6, 23, 0.62);
+  box-shadow: 0 30px 66px rgba(2, 6, 23, 0.58);
   border-color: rgba(255, 255, 255, 0.3);
+}
+
+.computer-floating-card.dragging,
+.computer-floating-card.dragging:hover {
+  transition: none;
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
 }
 
 .floating-card-header {
@@ -627,6 +644,8 @@ body {
   gap: 12px;
   margin-bottom: 10px;
   cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .floating-card-header.dragging {
@@ -876,6 +895,17 @@ textarea {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes floatingCardIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
