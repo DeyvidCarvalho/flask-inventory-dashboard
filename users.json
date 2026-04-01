@@ -14,5 +14,13 @@
     "data_cadastro": "31/03/2026 10:51",
     "aprovado_em": "31/03/2026 10:51",
     "aprovado_por": "Deyvid"
+  },
+  "Eliseu": {
+    "senha_hash": "pbkdf2:sha256:60000$u7XCmWGEmY61dwqD$f448c617214a8d6fe0127120edd78c9a84981586af29c0b4685cc02fd6f93290",
+    "aprovado": true,
+    "is_admin": true,
+    "data_cadastro": "01/04/2026 09:31",
+    "aprovado_em": "01/04/2026 09:32",
+    "aprovado_por": "Deyvid"
   }
 }
