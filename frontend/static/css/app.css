@@ -589,9 +589,7 @@ body {
   place-items: center;
   opacity: 0;
   pointer-events: none;
-  background: rgba(2, 6, 23, 0.35);
-  backdrop-filter: blur(0px);
-  -webkit-backdrop-filter: blur(0px);
+  background: rgba(2, 6, 23, 0.62);
   transition: opacity 0.2s ease;
   z-index: 120;
 }
@@ -602,9 +600,7 @@ body {
 }
 
 .computer-overlay.dragging {
-  backdrop-filter: blur(0px);
-  -webkit-backdrop-filter: blur(0px);
-  background: rgba(2, 6, 23, 0.35);
+  background: rgba(2, 6, 23, 0.62);
 }
 
 .computer-floating-card {
